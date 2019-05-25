@@ -24,7 +24,6 @@ public class TestRunner {
 
     public void runTests(Class testClass)
             throws IllegalAccessException, InstantiationException, InvocationTargetException {
-
         List<Method> testMethods = Arrays.stream(testClass.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(Test.class))
                 .collect(Collectors.toList());
@@ -32,7 +31,6 @@ public class TestRunner {
         String testGroup = testClass.getName();
 
         for (Method method : testMethods) {
-
             Object instance = testClass.newInstance();
             runAnnotateMethod(instance, Before.class);
             try {
@@ -42,7 +40,6 @@ public class TestRunner {
                         TestResult.ResultType.SUCCESS,
                         ""));
             } catch (InvocationTargetException exp) {
-
                 reporter.addTestResult(testGroup, new TestResult(
                         method.getName(),
                         TestResult.ResultType.FAIL,
@@ -51,7 +48,6 @@ public class TestRunner {
             }
             runAnnotateMethod(instance, After.class);
         }
-
     }
 
     public void doReport() {
@@ -82,7 +78,6 @@ public class TestRunner {
 
     private void runAnnotateMethod(Object instance, Class<? extends Annotation> annotation)
             throws InvocationTargetException, IllegalAccessException {
-
         for (Method method : instance.getClass().getDeclaredMethods()) {
             if (method.isAnnotationPresent(annotation)) {
                 method.setAccessible(true);
