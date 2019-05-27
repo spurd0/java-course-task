@@ -7,22 +7,53 @@ import com.babenko.testkg.asserts.exception.AssertException;
 import com.babenko.testkg.asserts.exception.UnexpectedExceptionError;
 import com.babenko.testkg.report.Report;
 import com.babenko.testkg.report.TestResult;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class TestRunner {
+    private static final boolean DISPLAY_StACK_TRACE = false;
+
     private Report reporter;
+
+    @Nullable
+    private Class testClass;
+
+    private AtomicBoolean testIsRunning = new AtomicBoolean(false);
 
     public TestRunner(Report reporter) {
         this.reporter = reporter;
+        new Thread(this::waitForTestClass).start();
     }
 
-    public void runTests(Class testClass)
+    private void waitForTestClass() {
+        while (testClass == null) {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        try {
+            testIsRunning.set(true);
+            executeTests(testClass);
+            doReport();
+        } catch (IllegalAccessException | InstantiationException | InvocationTargetException e) {
+            e.printStackTrace(); // todo add callback for failed test
+        }
+        testIsRunning.set(false); // todo add callback for succeed test
+        testClass = null;
+        waitForTestClass();
+    }
+
+    private void executeTests(Class testClass)
             throws IllegalAccessException, InstantiationException, InvocationTargetException {
         List<Method> testMethods = Arrays.stream(testClass.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(Test.class))
@@ -44,13 +75,13 @@ public class TestRunner {
                         method.getName(),
                         TestResult.ResultType.FAIL,
                         exp.getCause().getMessage()));
-                exp.printStackTrace();
+                if (DISPLAY_StACK_TRACE) exp.printStackTrace();
             }
             runAnnotateMethod(instance, After.class);
         }
     }
 
-    public void doReport() {
+    private void doReport() {
         reporter.doReport();
     }
 
@@ -59,7 +90,7 @@ public class TestRunner {
             method.setAccessible(true);
             method.invoke(instance);
         } catch (IllegalAccessException e) {
-            e.printStackTrace();
+            if (DISPLAY_StACK_TRACE) e.printStackTrace();
         } catch (InvocationTargetException exp) {
             if (!(exp.getCause() instanceof AssertException)
                     && !method.getAnnotation(Test.class).expected().isInstance(exp.getCause())) {
@@ -85,5 +116,13 @@ public class TestRunner {
                 return;
             }
         }
+    }
+
+    public void setTestClass(@NotNull Class testClass) {
+        this.testClass = testClass;
+    }
+
+    public boolean isTestRunning() {
+        return testIsRunning.get();
     }
 }
