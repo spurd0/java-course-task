@@ -13,10 +13,10 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println("Hello! Parsing arguments");
-        parseArguments(args);
+        parseArgumentsAndRunTests(args);
     }
 
-    private static void parseArguments(String[] args) {
+    private static void parseArgumentsAndRunTests(String[] args) {
         int threadsCount = 0;
         List<String> classesToTest = new ArrayList<>();
         // Парсинг входящей строки
@@ -38,13 +38,14 @@ public class Main {
 
     private static void runTesting(int threadsCount, List<String> classesNamesForTest) {
         System.out.printf("Running testing with threads count:%d%n", threadsCount);
-        System.out.printf("Classes to test:%s \n", classesNamesForTest.toArray());
+        System.out.printf("Classes to test:%s \n", classesNamesForTest.toString());
 
-        Queue<Class> classesForTest = getClassesForTestQueue(classesNamesForTest);
+        Queue<Class<?>> classesForTest = getClassesForTestQueue(classesNamesForTest);
         List<TestingThread> testThreads = getTestingThreads(threadsCount);
 
         System.out.println("Starting test manager thread");
         new Thread(() -> {
+            startThreads(testThreads);
             while (classesForTest.peek() != null) {
                 System.out.printf("Got class for test from queue, %s \n", classesForTest.peek());
                 for (int i = 0; i < testThreads.size(); i++) {
@@ -86,6 +87,17 @@ public class Main {
         }).start();
     }
 
+    private static void startThreads(List<TestingThread> testThreads) {
+        for (TestingThread testThread : testThreads) {
+            testThread.start();
+            try {
+                testThread.waitForStart();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     private static List<TestingThread> getTestingThreads(int threadsCount) {
         List<TestingThread> testThreads = new ArrayList<>(threadsCount);
         for (int i = 0; i < threadsCount; i++) {
@@ -94,13 +106,13 @@ public class Main {
         return testThreads;
     }
 
-    private static Queue<Class> getClassesForTestQueue(List<String> classesNamesForTest) {
+    private static Queue<Class<?>> getClassesForTestQueue(List<String> classesNamesForTest) {
         System.out.println("Lets look what did you give us for test");
-        Queue<Class> classesForTest = new LinkedList<>();
+        Queue<Class<?>> classesForTest = new LinkedList<>();
         classesNamesForTest
                 .forEach(className -> {
                     try {
-                        Class cl = Class.forName(className);
+                        Class<?> cl = Class.forName(className);
                         classesForTest.add(cl);
                     } catch (ClassNotFoundException e) {
                         System.out.printf("Error! Wrong class name %s \n", className);

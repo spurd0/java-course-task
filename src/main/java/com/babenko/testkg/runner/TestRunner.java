@@ -24,7 +24,7 @@ public class TestRunner {
     private Report reporter;
 
     @Nullable
-    private Class testClass;
+    private Class<?> testClass;
 
     private AtomicBoolean testIsRunning = new AtomicBoolean(false);
 
@@ -118,7 +118,7 @@ public class TestRunner {
         }
     }
 
-    public void setTestClass(@NotNull Class testClass) {
+    public void setTestClass(@NotNull Class<?> testClass) {
         this.testClass = testClass;
     }
 
