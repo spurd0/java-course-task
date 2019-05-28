@@ -24,7 +24,7 @@ public class TestRunner {
     private Report reporter;
 
     @Nullable
-    private Class<?> testClass;
+    private volatile Class<?> testClass;
 
     private AtomicBoolean testIsRunning = new AtomicBoolean(false);
 
