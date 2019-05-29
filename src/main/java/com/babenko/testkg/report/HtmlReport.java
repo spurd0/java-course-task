@@ -21,7 +21,7 @@ public class HtmlReport implements Report {
     }
 
     @Override
-    public void addTestResult(String testGroup, TestResult result) {
+    public synchronized void addTestResult(String testGroup, TestResult result) {
         if (results.get(testGroup) != null) {
             results.get(testGroup).add(result);
         } else {

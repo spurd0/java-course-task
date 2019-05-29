@@ -8,6 +8,7 @@ import com.babenko.testkg.asserts.exception.UnexpectedExceptionError;
 import com.babenko.testkg.report.Report;
 import com.babenko.testkg.report.TestResult;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
@@ -51,15 +52,15 @@ public class TestRunner implements Runnable {
 
     private void executeTests(Class testClass)
             throws IllegalAccessException, InstantiationException, InvocationTargetException {
-        List<Method> testMethods = Arrays.stream(testClass.getDeclaredMethods())
-                .filter(method -> method.isAnnotationPresent(Test.class))
-                .collect(Collectors.toList());
+        List<Method> testMethods = getMethods(testClass, Test.class);
+        @Nullable Method beforeMethod = getMethod(testClass, Before.class);
+        @Nullable Method afterMethod = getMethod(testClass, After.class);
 
         String testGroup = testClass.getName();
 
         for (Method method : testMethods) {
             Object instance = testClass.newInstance();
-            runAnnotateMethod(instance, Before.class);
+            if (beforeMethod != null) runAnnotateMethod(instance, beforeMethod);
             try {
                 runTestMethod(instance, method);
                 reporter.addTestResult(testGroup, new TestResult(
@@ -73,8 +74,25 @@ public class TestRunner implements Runnable {
                         exp.getCause().getMessage()));
                 if (DISPLAY_StACK_TRACE) exp.printStackTrace();
             }
-            runAnnotateMethod(instance, After.class);
+            if (afterMethod != null) runAnnotateMethod(instance, afterMethod);
         }
+    }
+
+    @Nullable
+    private Method getMethod(Class testClass, Class<? extends Annotation> annotation) {
+        List<Method> methods = getMethods(testClass, annotation);
+        if (!methods.isEmpty()) {
+            return methods.stream()
+                    .findFirst()
+                    .get();
+        }
+        return null;
+    }
+
+    private List<Method> getMethods(Class testClass, Class<? extends Annotation> annotation) {
+        return Arrays.stream(testClass.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(annotation))
+                .collect(Collectors.toList());
     }
 
     private void runTestMethod(Object instance, Method method) throws InvocationTargetException {
@@ -98,14 +116,9 @@ public class TestRunner implements Runnable {
         }
     }
 
-    private void runAnnotateMethod(Object instance, Class<? extends Annotation> annotation)
+    private void runAnnotateMethod(Object instance, Method method)
             throws InvocationTargetException, IllegalAccessException {
-        for (Method method : instance.getClass().getDeclaredMethods()) {
-            if (method.isAnnotationPresent(annotation)) {
-                method.setAccessible(true);
-                method.invoke(instance);
-                return;
-            }
-        }
+        method.setAccessible(true);
+        method.invoke(instance);
     }
 }
