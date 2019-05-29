@@ -1,8 +1,12 @@
 package com.babenko;
 
-import com.babenko.testkg.runner.TestingThread;
+import com.babenko.testkg.report.HtmlReport;
+import com.babenko.testkg.report.Report;
+import com.babenko.testkg.runner.RunnerCallback;
+import com.babenko.testkg.runner.TestRunner;
 
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
 
 public class Main {
     private static final int ARGS_POSITION_THREADS_COUNT = 0;
@@ -10,6 +14,19 @@ public class Main {
     private static final int ARGS_POSITION_CLASS_NAME_START = 2;
     private static final String ARG_NAME_CLASS_NAME = "class-name";
     private static final String TEXT_TO_EXECUTE = "N class-name [class-name]*";
+    private volatile static Report reporter = new HtmlReport("report.html");
+    private static Integer activeThreads;
+    private static RunnerCallback callback = new RunnerCallback() {
+        @Override
+        public void onTestingFinished() {
+            Main.onTestingFinished();
+        }
+
+        @Override
+        public void onTestingFailed(Exception e) {
+            System.out.println(String.format("Oops, got system error while testing:%s", e.toString()));
+        }
+    };
 
     public static void main(String[] args) {
         System.out.println("Hello! Parsing arguments");
@@ -41,85 +58,47 @@ public class Main {
         System.out.printf("Classes to test:%s \n", classesNamesForTest.toString());
 
         Queue<Class<?>> classesForTest = getClassesForTestQueue(classesNamesForTest);
-        List<TestingThread> testThreads = getTestingThreads(threadsCount);
-
-        System.out.println("Starting test manager thread");
-        new Thread(() -> {
-            startThreads(testThreads);
-            while (classesForTest.peek() != null) {
-                System.out.printf("Got class for test from queue, %s \n", classesForTest.peek());
-                for (int i = 0; i < testThreads.size(); i++) {
-                    TestingThread testThread = testThreads.get(i);
-                    if (testThread.isTreadBusy()) {
-                        if (i == testThreads.size() - 1) {
-                            System.out.println("All threads are busy, please wait");
-                            try {
-                                Thread.sleep(50);
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        continue;
-                    }
-                    System.out.printf("Running test for class, %s \n", classesForTest.peek());
-                    testThread.setTestClass(classesForTest.poll());
-                    break;
-                }
-            }
-            System.out.println("Sorry, please wait few seconds for threads"); //todo remove this hack, have no time, sorry
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-            for (TestingThread testThread : testThreads) { //todo implement some better checker for finishing tests, for example map with key-class & value = result (success\failed)
-                while (testThread.isTreadBusy()) {
-                    try {
-                        Thread.sleep(50);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            System.out.println("Testing finished. Have a nice day!");
-            System.exit(0);
-        }).start();
-    }
-
-    private static void startThreads(List<TestingThread> testThreads) {
-        for (TestingThread testThread : testThreads) {
-            testThread.start();
-            try {
-                testThread.waitForStart();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private static List<TestingThread> getTestingThreads(int threadsCount) {
-        List<TestingThread> testThreads = new ArrayList<>(threadsCount);
-        for (int i = 0; i < threadsCount; i++) {
-            testThreads.add(new TestingThread(i));
-        }
-        return testThreads;
+        Runnable testRunnable = new TestRunner(reporter, classesForTest, callback);
+        List<Thread> testThreads = getTestingThreads(threadsCount, testRunnable);
+        activeThreads = threadsCount;
+        for (Thread thread : testThreads) thread.start();
     }
 
     private static Queue<Class<?>> getClassesForTestQueue(List<String> classesNamesForTest) {
         System.out.println("Lets look what did you give us for test");
-        Queue<Class<?>> classesForTest = new LinkedList<>();
+        Queue<Class<?>> classesList = new LinkedList<>();
         classesNamesForTest
                 .forEach(className -> {
                     try {
                         Class<?> cl = Class.forName(className);
-                        classesForTest.add(cl);
+                        classesList.add(cl);
                     } catch (ClassNotFoundException e) {
                         System.out.printf("Error! Wrong class name %s \n", className);
                     }
                 });
 
+        Queue<Class<?>> classesForTest = new ArrayBlockingQueue<>(classesList.size());
+        classesForTest.addAll(classesList);
+
         System.out.printf("Successfully created %d classes for test \n", classesForTest.size());
         return classesForTest;
+    }
+
+    private static List<Thread> getTestingThreads(int threadsCount, Runnable testRunnable) {
+        List<Thread> testThreads = new ArrayList<>(threadsCount);
+        for (int i = 0; i < threadsCount; i++) {
+            testThreads.add(new Thread(testRunnable));
+        }
+        return testThreads;
+    }
+
+    private static void onTestingFinished() {
+        synchronized (activeThreads) {
+            activeThreads--;
+            if (activeThreads != 0) return;
+        }
+        System.out.println("Testing finished. Have a nice day!");
+        reporter.doReport();
+        System.exit(0);
     }
 }

@@ -8,49 +8,45 @@ import com.babenko.testkg.asserts.exception.UnexpectedExceptionError;
 import com.babenko.testkg.report.Report;
 import com.babenko.testkg.report.TestResult;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Queue;
 import java.util.stream.Collectors;
 
-public class TestRunner {
+public class TestRunner implements Runnable {
     private static final boolean DISPLAY_StACK_TRACE = false;
 
-    private Report reporter;
+    private final Report reporter;
+    private final RunnerCallback callback;
+    @NotNull
+    private Queue<Class<?>> testClasses;
 
-    @Nullable
-    private volatile Class<?> testClass;
-
-    private AtomicBoolean testIsRunning = new AtomicBoolean(false);
-
-    public TestRunner(Report reporter) {
+    public TestRunner(Report reporter, @NotNull Queue<Class<?>> testClasses, RunnerCallback callback) {
         this.reporter = reporter;
-        new Thread(this::waitForTestClass).start();
+        this.testClasses = testClasses;
+        this.callback = callback;
+    }
+
+    @Override
+    public void run() {
+        waitForTestClass();
     }
 
     private void waitForTestClass() {
-        while (testClass == null) {
+        while (testClasses.peek() != null) {
             try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
+                Class<?> testClass = testClasses.poll();
+                executeTests(testClass);
+            } catch (IllegalAccessException | InstantiationException | InvocationTargetException e) {
                 e.printStackTrace();
+                callback.onTestingFailed(e);
             }
         }
-        try {
-            testIsRunning.set(true);
-            executeTests(testClass);
-            doReport();
-        } catch (IllegalAccessException | InstantiationException | InvocationTargetException e) {
-            e.printStackTrace(); // todo add callback for failed test
-        }
-        testIsRunning.set(false); // todo add callback for succeed test
-        testClass = null;
-        waitForTestClass();
+        callback.onTestingFinished();
     }
 
     private void executeTests(Class testClass)
@@ -81,10 +77,6 @@ public class TestRunner {
         }
     }
 
-    private void doReport() {
-        reporter.doReport();
-    }
-
     private void runTestMethod(Object instance, Method method) throws InvocationTargetException {
         try {
             method.setAccessible(true);
@@ -103,7 +95,6 @@ public class TestRunner {
             } else {
                 throw exp;
             }
-
         }
     }
 
@@ -116,13 +107,5 @@ public class TestRunner {
                 return;
             }
         }
-    }
-
-    public void setTestClass(@NotNull Class<?> testClass) {
-        this.testClass = testClass;
-    }
-
-    public boolean isTestRunning() {
-        return testIsRunning.get();
     }
 }

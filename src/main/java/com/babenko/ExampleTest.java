@@ -7,23 +7,23 @@ import com.babenko.testkg.asserts.Assert;
 
 public class ExampleTest {
     public ExampleTest() {
-        System.out.println("constructor");
+        System.out.println(String.format("constructor inside thread :%s", Thread.currentThread().getName()));
     }
 
     @Before
     public void setUp() {
-        System.out.println("setUp");
+        System.out.println(String.format("setUp inside thread :%s", Thread.currentThread().getName()));
     }
 
     @Test(expected = NullPointerException.class)
     public void test1() {
-        System.out.println("test1");
+        System.out.println(String.format("test1 inside thread :%s", Thread.currentThread().getName()));
         throw new IllegalArgumentException();
     }
 
     @Test
     public void test2() {
-        System.out.println("test2");
+        System.out.println(String.format("test2 inside thread :%s", Thread.currentThread().getName()));
         Assert.assertsEquals("", 1L, 1L);
     }
 
@@ -35,7 +35,7 @@ public class ExampleTest {
 
     @After
     public void tearDown() {
-        System.out.println("tearDown");
+        System.out.println(String.format("tearDown inside thread :%s", Thread.currentThread().getName()));
     }
 
 }

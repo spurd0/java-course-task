@@ -15,21 +15,6 @@ public class TestResult {
         this.message = message;
     }
 
-    public enum ResultType {
-        SUCCESS {
-            @Override
-            public String toString() {
-                return "SUCCESS";
-            }
-        },
-        FAIL {
-            @Override
-            public String toString() {
-                return "FAIL";
-            }
-        }
-    }
-
     public String getTestName() {
         return testName;
     }
@@ -40,5 +25,20 @@ public class TestResult {
 
     public String getMessage() {
         return message;
+    }
+
+    public enum ResultType {
+        SUCCESS {
+            @Override
+            public String toString() {
+                return "Successfully passed";
+            }
+        },
+        FAIL {
+            @Override
+            public String toString() {
+                return "Test failed";
+            }
+        }
     }
 }
